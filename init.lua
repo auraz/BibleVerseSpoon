@@ -4,8 +4,6 @@ obj.__index = obj
 obj.name = "BibleVerse"
 obj.version = "2.0"
 obj.author = "Oleksandr"
-obj.license = "MIT - https://opensource.org/licenses/MIT"
-obj.homepage = "https://github.com/auraz/BibleVerseSpoon"
 
 local verse = dofile(hs.spoons.resourcePath("verse.lua"))
 local widget = dofile(hs.spoons.resourcePath("widget.lua"))

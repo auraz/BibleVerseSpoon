@@ -1,11 +1,18 @@
 --- Widget rendering functions.
 local M = {}
 
-function M.calculate_position(screen_frame, config, screen_name)
+function M.get_screen_config(config, screen_name)
     local pos = config.position[screen_name] or config.position.default
-    local x = pos.x >= 0 and pos.x or (screen_frame.w + pos.x - config.width)
-    local y = pos.y >= 0 and pos.y or (screen_frame.h + pos.y - config.height)
-    return { x = screen_frame.x + x, y = screen_frame.y + y }
+    local width = (config.size and config.size[screen_name] and config.size[screen_name].width) or config.width
+    local height = (config.size and config.size[screen_name] and config.size[screen_name].height) or config.height
+    return { position = pos, width = width, height = height }
+end
+
+function M.calculate_position(screen_frame, config, screen_name)
+    local sc = M.get_screen_config(config, screen_name)
+    local x = sc.position.x >= 0 and sc.position.x or (screen_frame.w + sc.position.x - sc.width)
+    local y = sc.position.y >= 0 and sc.position.y or (screen_frame.h + sc.position.y - sc.height)
+    return { x = screen_frame.x + x, y = screen_frame.y + y, w = sc.width, h = sc.height }
 end
 
 function M.create_elements(text, reference, config)
@@ -24,7 +31,7 @@ function M.render(state, text, reference, config, verse_data)
     local screen = hs.screen.mainScreen()
     local frame = screen:frame()
     local pos = M.calculate_position(frame, config, screen:name())
-    local canvas = hs.canvas.new({ x = pos.x, y = pos.y, w = config.width, h = config.height })
+    local canvas = hs.canvas.new({ x = pos.x, y = pos.y, w = pos.w, h = pos.h })
     canvas:appendElements(M.create_elements(text, reference, config))
     canvas:level(hs.canvas.windowLevels.floating)
     canvas:behavior(hs.canvas.windowBehaviors.canJoinAllSpaces)
