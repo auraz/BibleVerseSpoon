@@ -1,6 +1,6 @@
 return {
     background = {
-        alpha = 5,
+        alpha = 0.85,
         color = {
             blue = 0.15,
             green = 0.1,
@@ -9,6 +9,7 @@ return {
         corner_radius = 25
     },
     font = {
+        name = "Helvetica",
         color = {
             blue = 0.9649612307548523,
             green = 0.7746176719665527,
