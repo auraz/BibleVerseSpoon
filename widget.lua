@@ -55,10 +55,10 @@ local function bg_elements(config, alpha_override)
         { type = "rectangle", action = "stroke",
           roundedRectRadii = { xRadius = bg.corner_radius, yRadius = bg.corner_radius },
           strokeColor = { red = 0.3, green = 0.4, blue = 0.5, alpha = 0.5 }, strokeWidth = 1 },
-        { id = "focus_ring", type = "rectangle", action = "stroke", hidden = true,
+        { id = "focus_ring", type = "rectangle", action = "stroke",
           roundedRectRadii = { xRadius = bg.corner_radius + 2, yRadius = bg.corner_radius + 2 },
           frame = { x = -3, y = -3, w = config.width + 6, h = config.height + 6 },
-          strokeColor = { red = 0.145, green = 0.388, blue = 0.922, alpha = 1 }, strokeWidth = 3 },
+          strokeColor = { red = 0.145, green = 0.388, blue = 0.922, alpha = 0 }, strokeWidth = 3 },
     }
 end
 
@@ -79,8 +79,25 @@ local function relative_time(ts)
     end
 end
 
+local _refresh_callback = nil
+
+function M.set_refresh_callback(fn) _refresh_callback = fn end
+
 local function dispatch_refresh()
-    hs.urlevent.openURL("bibleverse://refresh")
+    if _refresh_callback then _refresh_callback() end
+end
+
+local function show_element(canvas, id, color_key, color)
+    if not canvas or not canvas[id] then return end
+    canvas[id][color_key] = color
+end
+
+local function hide_element(canvas, id, color_key, color)
+    if not canvas or not canvas[id] then return end
+    local hidden_color = {}
+    for k, v in pairs(color) do hidden_color[k] = v end
+    hidden_color.alpha = 0
+    canvas[id][color_key] = hidden_color
 end
 
 function M.register_hotkeys(state, canvas, config)
@@ -88,44 +105,6 @@ function M.register_hotkeys(state, canvas, config)
         for _, hk in ipairs(state._hotkeys) do hk:delete() end
     end
     state._hotkeys = {}
-
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({}, "space", function()
-        if not state._fetching then dispatch_refresh() end
-    end)
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({}, "return", function()
-        if not state._fetching then dispatch_refresh() end
-    end)
-
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({"cmd"}, "c", function()
-        if not canvas then return end
-        local text = state._current_text or ""
-        local ref = state._current_ref or ""
-        local full = text .. (ref ~= "" and ("\n" .. ref) or "")
-        local copy_ok = pcall(hs.pasteboard.setContents, full)
-        if copy_ok then
-            log.d("[COPY-OK]")
-            if canvas["copied_tooltip"] then
-                canvas["copied_tooltip"].hidden = false
-                hs.timer.doAfter(1.5, function()
-                    if canvas and canvas["copied_tooltip"] then canvas["copied_tooltip"].hidden = true end
-                end)
-            end
-        else
-            log.d("[COPY-FAIL]")
-        end
-    end)
-
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({}, "escape", function()
-        if canvas then canvas:hide() end
-    end)
-
-    for _, hk in ipairs(state._hotkeys) do hk:enable() end
-
-    if not state._focus_ring_shown then
-        state._focus_ring_shown = true
-        if canvas["focus_ring"] then canvas["focus_ring"].hidden = false end
-        M._show_shortcut_tooltip(state, canvas, config)
-    end
 end
 
 function M._show_shortcut_tooltip(state, canvas, config)
@@ -189,15 +168,15 @@ function M.render_verse(state, text, reference, config, verse_data, alpha_overri
     elems[#elems+1] = { id = "ref_text", type = "text", text = "— " .. (reference or ""),
         textColor = font.reference_color, textSize = font.reference_size, textFont = font.name,
         textAlignment = "right", frame = { x = "5%", y = "78%", w = "90%", h = "18%" } }
-    elems[#elems+1] = { id = "offline_pill_bg", type = "rectangle", action = "fill", hidden = true,
+    elems[#elems+1] = { id = "offline_pill_bg", type = "rectangle", action = "fill",
         frame = { x = "80%", y = "4%", w = "18%", h = "14%" },
-        fillColor = { red = 107/255, green = 114/255, blue = 128/255, alpha = 1 },
+        fillColor = { red = 107/255, green = 114/255, blue = 128/255, alpha = 0 },
         roundedRectRadii = { xRadius = 3, yRadius = 3 } }
-    elems[#elems+1] = { id = "offline_pill_text", type = "text", text = "Offline", hidden = true,
-        textColor = { white = 1 }, textSize = 11, textFont = font.name,
+    elems[#elems+1] = { id = "offline_pill_text", type = "text", text = "Offline",
+        textColor = { white = 1, alpha = 0 }, textSize = 11, textFont = font.name,
         textAlignment = "center", frame = { x = "80%", y = "4%", w = "18%", h = "14%" } }
-    elems[#elems+1] = { id = "copied_tooltip", type = "text", text = "Copied!", hidden = true,
-        textColor = { red = 0.6, green = 0.6, blue = 0.6, alpha = 1 }, textSize = 11, textFont = font.name,
+    elems[#elems+1] = { id = "copied_tooltip", type = "text", text = "Copied!",
+        textColor = { red = 0.6, green = 0.6, blue = 0.6, alpha = 0 }, textSize = 11, textFont = font.name,
         textAlignment = "right", frame = { x = "60%", y = "4%", w = "38%", h = "14%" } }
     local ts_text = verse_data and verse_data.cached_at and ("Last updated " .. relative_time(verse_data.cached_at)) or ""
     elems[#elems+1] = { id = "timestamp", type = "text", text = ts_text,
@@ -252,13 +231,13 @@ function M.render_error(state, bucket, cached_verse, config)
         textColor = warn_color, textSize = 14, textFont = font.name, trackMouseUp = true,
         textAlignment = "center", frame = { x = "30%", y = "60%", w = "40%", h = "25%" } }
 
-    local pill_hidden = bucket ~= "offline"
-    elems[#elems+1] = { id = "offline_pill_bg", type = "rectangle", action = "fill", hidden = pill_hidden,
+    local pill_alpha = bucket == "offline" and 1 or 0
+    elems[#elems+1] = { id = "offline_pill_bg", type = "rectangle", action = "fill",
         frame = { x = "80%", y = "4%", w = "18%", h = "14%" },
-        fillColor = { red = 107/255, green = 114/255, blue = 128/255, alpha = 1 },
+        fillColor = { red = 107/255, green = 114/255, blue = 128/255, alpha = pill_alpha },
         roundedRectRadii = { xRadius = 3, yRadius = 3 } }
-    elems[#elems+1] = { id = "offline_pill_text", type = "text", text = "Offline", hidden = pill_hidden,
-        textColor = { white = 1 }, textSize = 11, textFont = font.name,
+    elems[#elems+1] = { id = "offline_pill_text", type = "text", text = "Offline",
+        textColor = { white = 1, alpha = pill_alpha }, textSize = 11, textFont = font.name,
         textAlignment = "center", frame = { x = "80%", y = "4%", w = "18%", h = "14%" } }
 
     if cached_verse and type(cached_verse.text) == "string" then
@@ -282,16 +261,6 @@ function M.render_error(state, bucket, cached_verse, config)
         for _, hk in ipairs(state._hotkeys) do hk:delete() end
     end
     state._hotkeys = {}
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({}, "space", function()
-        if not state._fetching then dispatch_refresh() end
-    end)
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({}, "return", function()
-        if not state._fetching then dispatch_refresh() end
-    end)
-    state._hotkeys[#state._hotkeys+1] = hs.hotkey.new({}, "escape", function()
-        if canvas then canvas:hide() end
-    end)
-    for _, hk in ipairs(state._hotkeys) do hk:enable() end
 
     canvas:appendElements(elems)
     canvas:show()

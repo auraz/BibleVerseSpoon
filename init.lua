@@ -160,6 +160,8 @@ function obj:start()
 
     local start_ms = os.clock()
 
+    widget.set_refresh_callback(function() self:refresh("manual") end)
+
     local ok_st, loaded_states = pcall(dofile, hs.spoons.resourcePath("states.lua"))
     if ok_st then
         states = loaded_states
@@ -219,9 +221,6 @@ function obj:stop()
 end
 
 function obj:focus()
-    if not state.canvas then return self end
-    if state.canvas["focus_ring"] then state.canvas["focus_ring"].hidden = false end
-    widget.register_hotkeys(state, state.canvas, self.config)
     return self
 end
 
